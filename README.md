@@ -54,3 +54,11 @@ Frontend: React (визуализация данных и рекомендаци
 ✅ Снижение потерь меди в шлаке.
 
 ✅ Автоматизированная аналитика для оперативного принятия решений.
+
+Структура проекта:
+
+- Vanukov.ipynb - анализ данных, обучение и выгрузка модели
+- Vanukov-ML-site - папка с MLOps-инфраструктурой: Backend API (Flask) - predict-server, Frontend (React) - vanukov-site, Симуляция работы печи в RT (WebSocketServer) - simulator
+- Для запуска перейти в папку, ввести команду "docker-compose up --build"
+
+  
