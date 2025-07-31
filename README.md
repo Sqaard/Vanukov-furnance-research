@@ -1,6 +1,6 @@
 - Презентация к проекту: https://docs.google.com/presentation/d/1X4M8gZIRe-MGVX91eyNWMTnE9fNxv_As/edit?usp=sharing&ouid=103804871650085974108&rtpof=true&sd=true
 
-DSS для оптимизации состава штейна в металлургическом производстве
+DSS для оптимизации процесса плавки на металлургическом производстве
 
 🔍 Актуальность
 
