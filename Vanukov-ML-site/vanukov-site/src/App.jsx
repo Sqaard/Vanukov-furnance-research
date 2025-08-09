@@ -7,163 +7,174 @@ const App = () => {
   const [data, setData] = useState([]);
   const [cuPredictions, setCuPredictions] = useState([]);
   const [error, setError] = useState(null);
-  const [currentValues, setCurrentValues] = useState({});
   const [recommendations, setRecommendations] = useState([]);
-  const [manualAdjustments, setManualAdjustments] = useState({
-    'Overall blast volume, m3/h': null,
-    'feeder 2, speed': null,
-  });
   const [inputValues, setInputValues] = useState({
     'Overall blast volume, m3/h': '',
     'feeder 2, speed': '',
   });
-  const [lastRecommendationTime, setLastRecommendationTime] = useState(0);
-
   // Normative ranges for input validation
   const normativeRanges = {
-    'Overall blast volume, m3/h': { min: 800, max: 1200 },
+    'Overall blast volume, m3/h': { min: 15000, max: 35000 },
     'feeder 2, speed': { min: 15, max: 45 },
   };
 
   useEffect(() => {
-    const ws = new WebSocket('ws://localhost:5001');
+    let ws;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+    const reconnectInterval = 3000; // 3 seconds
 
-    ws.onopen = () => {
-      console.log('WebSocket connected to ws://localhost:5001');
-    };
+    const connectWebSocket = () => {
+      ws = new WebSocket('ws://localhost:5001');
 
-    ws.onmessage = async (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        console.log('WebSocket message:', message);
-        const time = new Date(message.Date).toLocaleTimeString();
-        const newData = {
-          time,
-          overallBlastVolume: Number(message['Overall blast volume, m3/h']) || 0,
-          tempFeedMatteSiphon: Number(message['temperature of the feed, matte siphon']) || 0,
-          tempFeedMeltingZonePoint1: Number(message['temperature of the feed, melting zone, point 1']) || 0,
-          naturalGasFlow: Number(message['natural gas flow']) || 0,
-          feeder2Speed: Number(message['feeder 2, speed']) || 0,
-        };
+      ws.onopen = () => {
+        console.log('WebSocket connected to ws://localhost:5001');
+        setError(null);
+        reconnectAttempts = 0; // Reset attempts on successful connection
+      };
 
-        const requiredFeatures = [
-          'Total charge rate, t/h',
-          'Overall blast volume, m3/h',
-          'Oxygen content in the blast (degree of oxygen enrichment in the blowing), %',
-          'Temperature of exhaust gases in the off-gas duct, °C',
-          'Temperature of feed in the smelting zone, °C',
-          'feeder 2, speed',
-        ];
-        const predictData = {
-          'Total charge rate, t/h': Number(message['Total charge rate, t/h']) || 100,
-          'Overall blast volume, m3/h': manualAdjustments['Overall blast volume, m3/h'] !== null ? manualAdjustments['Overall blast volume, m3/h'] : Number(message['Overall blast volume, m3/h']) || 1000,
-          'Oxygen content in the blast (degree of oxygen enrichment in the blowing), %': Number(message['Oxygen content in the blast (degree of oxygen enrichment in the blowing), %']) || 21,
-          'Temperature of exhaust gases in the off-gas duct, °C': Number(message['Temperature of exhaust gases in the off-gas duct, °C']) || 500,
-          'Temperature of feed in the smelting zone, °C': Number(message['Temperature of feed in the smelting zone, °C']) || 1000,
-          'feeder 2, speed': manualAdjustments['feeder 2, speed'] !== null ? manualAdjustments['feeder 2, speed'] : Number(message['feeder 2, speed']) || 30,
-        };
-
-        setData((prev) => [...prev, newData].slice(-100));
-
-
+      ws.onmessage = async (event) => {
         try {
-          const [predictResponse, recommendResponse] = await Promise.all([
-            axios.post('http://localhost:5002/predict', predictData),
-            axios.post('http://localhost:5002/recommend', predictData)
-          ]);
-          const cuPrediction = predictResponse.data.prediction;
-          const { current_cu, recommendations: newRecommendations } = recommendResponse.data;
+          const message = JSON.parse(event.data);
+          console.log('WebSocket message keys:', Object.keys(message));
+          const time = new Date(message.Date).toLocaleTimeString();
+          const newData = {
+            time,
+            overallBlastVolume: Number(message['Overall blast volume, m3/h']) || 0,
+            tempFeedMatteSiphon: Number(message['temperature of the feed, matte siphon']) || 0,
+            tempFeedMeltingZonePoint1: Number(message['temperature of the feed, melting zone, point 1']) || 0,
+            naturalGasFlow: Number(message['natural gas flow']) || 0,
+            feeder2Speed: Number(message['feeder 2, speed']) || 0,
+          };
 
-          setCuPredictions((prev) => [...prev, { time, cu: cuPrediction }].slice(-100));
-          setCurrentValues({
-            overallBlastVolume: predictData['Overall blast volume, m3/h'],
-            tempFeedMatteSiphon: newData.tempFeedMatteSiphon,
-            tempFeedMeltingZonePoint1: newData.tempFeedMeltingZonePoint1,
-            naturalGasFlow: newData.naturalGasFlow,
-            feeder2Speed: predictData['feeder 2, speed'],
-            cu: cuPrediction,
-          });
+          setData((prev) => [...prev, newData].slice(-100));
 
-          const currentTime = Date.now();
-          if (currentTime - lastRecommendationTime >= 5000) {
-            setRecommendations(newRecommendations);
-            setLastRecommendationTime(currentTime);
+          //Update for Cu graph
+          const predictData = {
+            'blast furnace pressure, point 1': Number(message['blast furnace pressure, point 1']) || 50,
+            'blast furnace pressure, point 2': Number(message['blast furnace pressure, point 2']) || 50,
+            'natural gas pressure': Number(message['natural gas pressure']) || 0.5,
+            'conveyor 31, productivity': Number(message['conveyor 31, productivity']) || 100,
+            'conveyor 31, speed': Number(message['conveyor 31, speed']) || 5,
+            'conveyor 32, productivity': Number(message['conveyor 32, productivity']) || 100,
+            'conveyor 32, speed': Number(message['conveyor 32, speed']) || 5,
+            'feeder 1, level': Number(message['feeder 1, level']) || 50,
+            'feeder 1, speed': Number(message['feeder 1, speed']) || 30,
+            'feeder 1, productivity': Number(message['feeder 1, productivity']) || 100,
+            'feeder 2, level': Number(message['feeder 2, level']) || 50,
+            'feeder 2, speed': inputValues['feeder 2, speed'] !== '' ? inputValues['feeder 2, speed'] : Number(message['feeder 2, speed']) || 30,
+            'feeder 2, productivity': Number(message['feeder 2, productivity']) || 100,
+            'feeder 3, level': Number(message['feeder 3, level']) || 50,
+            'feeder 3, speed': Number(message['feeder 3, speed']) || 30,
+            'feeder 3, productivity': Number(message['feeder 3, productivity']) || 100,
+            'feeder 4, level': Number(message['feeder 4, level']) || 50,
+            'feeder 4, speed': Number(message['feeder 4, speed']) || 30,
+            'feeder 4, productivity': Number(message['feeder 4, productivity']) || 100,
+            'feeder 5, level': Number(message['feeder 5, level']) || 50,
+            'feeder 5, speed': Number(message['feeder 5, speed']) || 30,
+            'feeder 5, productivity': Number(message['feeder 5, productivity']) || 100,
+            'feeder 6, level': Number(message['feeder 6, level']) || 50,
+            'feeder 6, speed': Number(message['feeder 6, speed']) || 30,
+            'feeder 6, productivity': Number(message['feeder 6, productivity']) || 100,
+            'feeder 7, speed': Number(message['feeder 7, speed']) || 30,
+            'feeder 7, level': Number(message['feeder 7, level']) || 50,
+            'feeder 8, level': Number(message['feeder 8, level']) || 50,
+            'vacuum in the bunker': Number(message['vacuum in the bunker']) || 0.1,
+            'Overall blast volume, m3/h': inputValues['Overall blast volume, m3/h'] !== '' ? inputValues['Overall blast volume, m3/h'] : Number(message['Overall blast volume, m3/h']) || 1000,
+            'natural gas flow': Number(message['natural gas flow']) || 200,
+            'Oxygen content in the blast, %': Number(message['Oxygen content in the blast, %']) || 21,
+            'blast furnace temperature': Number(message['blast furnace temperature']) || 1200,
+            'Temperature of exhaust gases in the off-gas duct, °C': Number(message['Temperature of exhaust gases in the off-gas duct, °C']) || 500,
+            'temperature of the feed, matte siphon': Number(message['temperature of the feed, matte siphon']) || 1100,
+            'temperature of the feed, melting zone, point 1': Number(message['temperature of the feed, melting zone, point 1']) || 1000,
+            'temperature of the feed, melting zone, point 2': Number(message['temperature of the feed, melting zone, point 2']) || 1000,
+            'temperature of natural gas': Number(message['temperature of natural gas']) || 300,
+          };
+
+          try {
+            const [predictResponse, recommendResponse] = await Promise.all([
+              axios.post('http://localhost:5002/predict', predictData),
+              axios.post('http://localhost:5002/recommend', predictData)
+            ]);
+            console.log('Predict server response:', predictResponse);
+            console.log('Recommendations:', recommendResponse);
+            if(predictResponse.data.status != "gathering_data"){
+              const cuPrediction = predictResponse.data.prediction;
+              const newRecommendations = recommendResponse.data.recommendations;
+              
+              setCuPredictions((prev) => [...prev, { time, cu: cuPrediction }].slice(-100));
+              setRecommendations(newRecommendations);
+              setError(null);
+            }
+            
+          } catch (error) {
+            console.error('Error fetching prediction or recommendations:', error.response?.data || error.message);
+            setError(`Ошибка предсказания или рекомендаций: ${error.response?.data?.error || error.message}`);
           }
-
-          setError(null);
         } catch (error) {
-          console.error('Error fetching prediction or recommendations:', error.response?.data || error.message);
-          setError(`Ошибка предсказания или рекомендаций: ${error.response?.data?.error || error.message}`);
+          console.error('Error parsing WebSocket message:', error);
+          setError(`Ошибка сообщения WebSocket: ${error.message}`);
         }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
-        setError(`Ошибка сообщения WebSocket: ${error.message}`);
-      }
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        setError('Соединение WebSocket закрыто. Пытаемся переподключиться...');
+        if (reconnectAttempts < maxReconnectAttempts) {
+          setTimeout(() => {
+            console.log(`Reconnect attempt ${reconnectAttempts + 1}`);
+            reconnectAttempts++;
+            connectWebSocket();
+          }, reconnectInterval);
+        } else {
+          setError('Не удалось установить соединение с WebSocket после нескольких попыток.');
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        setError(`Ошибка WebSocket: ${error.message}`);
+      };
     };
 
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-      setError('Соединение WebSocket закрыто');
+    connectWebSocket();
+
+    return () => {
+      if (ws) ws.close();
     };
+  }, []);
 
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setError(`Ошибка WebSocket: ${error.message}`);
-    };
-
-    return () => ws.close();
-  }, [manualAdjustments, lastRecommendationTime]);
-
+  
   const handleInputChange = (param, value) => {
     setInputValues((prev) => ({ ...prev, [param]: value }));
   };
 
-  const applyAdjustment = async (param) => {
+  const applyAdjustment = (param) => {
     const value = parseFloat(inputValues[param]);
-    const range = normativeRanges[param];
+    const range = normativeRanges[param]; // { min: 15000, max: 35000 }
 
-    if (isNaN(value) || value < range.min || value > range.max) {
-      setError(`Недопустимое значение для ${param}: должно быть между ${range.min} и ${range.max}`);
+    if (isNaN(value)) {
+      alert("Введите число!");
       return;
     }
 
-    setManualAdjustments((prev) => ({
+    if (value < range.min || value > range.max) {
+      alert(`Значение должно быть между ${range.min} и ${range.max}`);
+      return;
+    }
+
+    // Обновляем data 
+    setData(prev => ({
       ...prev,
-      [param]: value,
+      [param]: value
     }));
 
-    const predictData = {
-      'Total charge rate, t/h': currentValues['Total charge rate, t/h'] || 100,
-      'Overall blast volume, m3/h': param === 'Overall blast volume, m3/h' ? value : currentValues['Overall blast volume, m3/h'] || 1000,
-      'Oxygen content in the blast (degree of oxygen enrichment in the blowing), %': currentValues['Oxygen content in the blast (degree of oxygen enrichment in the blowing), %'] || 21,
-      'Temperature of exhaust gases in the off-gas duct, °C': currentValues['Temperature of exhaust gases in the off-gas duct, °C'] || 500,
-      'Temperature of feed in the smelting zone, °C': currentValues['Temperature of feed in the smelting zone, °C'] || 1000,
-      'feeder 2, speed': param === 'feeder 2, speed' ? value : currentValues['feeder 2, speed'] || 30,
-    };
-
-    try {
-      const [predictResponse, recommendResponse] = await Promise.all([
-        axios.post('http://localhost:5002/predict', predictData),
-        axios.post('http://localhost:5002/recommend', predictData)
-      ]);
-      const cuPrediction = predictResponse.data.prediction;
-      const { current_cu, recommendations: newRecommendations } = recommendResponse.data;
-
-      setCuPredictions((prev) => [...prev, { time: new Date().toLocaleTimeString(), cu: cuPrediction }].slice(-100));
-      setCurrentValues((prev) => ({ ...prev, [param]: value, cu: cuPrediction }));
-
-      setRecommendations(newRecommendations);
-      setLastRecommendationTime(Date.now());
-      setError(null);
-    } catch (error) {
-      console.error('Error fetching prediction:', error.response?.data || error.message);
-      setError(`Ошибка предсказания: ${error.response?.data?.error || error.message}`);
-    }
   };
+
 
   return (
     <div className="container">
-      <h1>Панель управления металлургией в реальном времени</h1>
+      <h1>Панель управления процессом плавки печи Ванюкова в реальном времени</h1>
       {error && <div className="error">{error}</div>}
 
       <div className="charts-grid">
@@ -192,7 +203,7 @@ const App = () => {
         <div className="chart-container">
           <h2>Температура пода, зона плавления, точка 1 (°C)</h2>
           <LineChart width={400} height={250} data={data}>
-            < CartesianGrid strokeDasharray="3 3" />
+            <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="time" />
             <YAxis />
             <Tooltip />
@@ -201,7 +212,7 @@ const App = () => {
           </LineChart>
         </div>
         <div className="chart-container">
-          <h2>Расход природного газа (м3/ч)</h2>
+          <h2>Расход природного газа (м³/ч)</h2>
           <LineChart width={400} height={250} data={data}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="time" />
@@ -212,39 +223,67 @@ const App = () => {
           </LineChart>
         </div>
         <div className="chart-container">
-          <h2>Скорость питателей (км/ч)</h2>
+          <h2>Скорость питателя 2</h2>
           <LineChart width={400} height={250} data={data}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="time" />
             <YAxis />
             <Tooltip />
             <Legend />
-            <Line type="monotone" dataKey="feeder2Speed" stroke="#ff00ff" name="Скорость питателей, км/ч" />
+            <Line type="monotone" dataKey="feeder2Speed" stroke="#ff00ff" name="Скорость питателя 2" />
           </LineChart>
         </div>
         <div className="chart-container">
           <h2>Предсказанное [Cu] (%)</h2>
-          <LineChart width={400} height={250} data={cuPredictions}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="time" />
-            <YAxis domain={[50, 67]} />
-            <Tooltip />
-            <Legend />
-            <Line type="monotone" dataKey="cu" stroke="#ff7300" name="Содержание Cu (%)" />
-          </LineChart>
+          {Array.isArray(cuPredictions) && cuPredictions.length > 0 ? (
+            <LineChart 
+              width={400} 
+              height={250} 
+              data={cuPredictions}
+              margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="time"
+              />
+              <YAxis />
+              <Tooltip 
+                formatter={(value) => [`${Number(value).toFixed(2)}%`, "Концентрация Cu"]}
+              />
+              <Legend />
+              <Line 
+                type="monotone" 
+                dataKey="cu" 
+                stroke="#ff7300" 
+                name="Содержание Cu (%)"
+                activeDot={{ r: 6 }}
+              />
+            </LineChart>
+          ) : (
+            <div className="no-data-message">
+              {Array.isArray(cuPredictions) ? "Нет данных для отображения" : "Загрузка данных..."}
+            </div>
+          )}
         </div>
       </div>
 
       <div className="current-values">
         <h2>Текущие значения</h2>
-        {currentValues.cu && (
+        {(
           <>
-            <p>Общий объем дутья: {currentValues.overallBlastVolume?.toFixed(2)} м³/ч</p>
-            <p>Температура пода, штейновый сифон: {currentValues.tempFeedMatteSiphon?.toFixed(2)} °C</p>
-            <p>Температура пода, зона плавления, точка 1: {currentValues.tempFeedMeltingZonePoint1?.toFixed(2)} °C</p>
-            <p>Расход природного газа: {currentValues.naturalGasFlow?.toFixed(2)}</p>
-            <p>Скорость питателя 2: {currentValues.feeder2Speed?.toFixed(2)}</p>
-            <p className="font-bold">Cu, %: {currentValues.cu?.toFixed(2)} %</p>
+            <p>Общий объем дутья: {data['Overall blast volume, m3/h']?.toFixed(2)} м³/ч</p>
+            <p>Температура пода, штейновый сифон: {data['temperature of the feed, matte siphon']?.toFixed(2)} °C</p>
+            <p>Температура пода, зона плавления, точка 1: {data['temperature of the feed, melting zone, point 1']?.toFixed(2)} °C</p>
+            <p>Расход природного газа: {data['natural gas flow']?.toFixed(2)} м³/ч</p>
+            <p>Скорость питателя: {data['feeder 2, speed']?.toFixed(2)} км/ч</p>
+            <p className="font-bold">
+              Cu: {
+                cuPredictions?.length > 0 && 
+                typeof cuPredictions[cuPredictions.length - 1]?.cu === 'number' 
+                  ? cuPredictions[cuPredictions.length - 1].cu.toFixed(2) 
+                  : ''
+              } %
+            </p>
           </>
         )}
       </div>
@@ -263,7 +302,7 @@ const App = () => {
       <div className="adjustments">
         <h2>Ручная корректировка параметров</h2>
         <div className="adjustment-item">
-          <p>Общий объем дутья (м³/ч): {currentValues.overallBlastVolume?.toFixed(2)}</p>
+          <p>Общий объем дутья (м³/ч): {data['Overall blast volume, m3/h']?.toFixed(2)}</p>
           <input
             type="number"
             value={inputValues['Overall blast volume, m3/h']}
@@ -279,7 +318,7 @@ const App = () => {
           </button>
         </div>
         <div className="adjustment-item">
-          <p>Скорость питателей (км/ч): {currentValues.feeder2Speed?.toFixed(2)}</p>
+          <p>Скорость питателя 2: {data['feeder 2, speed']?.toFixed(2)}</p>
           <input
             type="number"
             value={inputValues['feeder 2, speed']}

@@ -1,7 +1,7 @@
-FROM node:latest
+FROM python:3.9
 WORKDIR /app
-COPY package.json ./
-RUN npm install
-COPY . .  
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
+COPY . .
 EXPOSE 5001
-CMD ["node", "simulator.js"]
+CMD ["python", "simulator.py"]
