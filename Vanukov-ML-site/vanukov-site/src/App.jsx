@@ -171,8 +171,10 @@ const App = () => {
 
   };
 
-
+  // Get the most recent data point for current values
+  const latestData = data.length > 0 ? data[data.length - 1] : {}
   return (
+    
     <div className="container">
       <h1>Панель управления процессом плавки печи Ванюкова в реальном времени</h1>
       {error && <div className="error">{error}</div>}
@@ -266,35 +268,44 @@ const App = () => {
           )}
         </div>
       </div>
-
+      
       <div className="current-values">
         <h2>Текущие значения</h2>
-        {(
-          <>
-            <p>Общий объем дутья: {data['Overall blast volume, m3/h']?.toFixed(2)} м³/ч</p>
-            <p>Температура пода, штейновый сифон: {data['temperature of the feed, matte siphon']?.toFixed(2)} °C</p>
-            <p>Температура пода, зона плавления, точка 1: {data['temperature of the feed, melting zone, point 1']?.toFixed(2)} °C</p>
-            <p>Расход природного газа: {data['natural gas flow']?.toFixed(2)} м³/ч</p>
-            <p>Скорость питателя: {data['feeder 2, speed']?.toFixed(2)} км/ч</p>
-            <p className="font-bold">
-              Cu: {
-                cuPredictions?.length > 0 && 
-                typeof cuPredictions[cuPredictions.length - 1]?.cu === 'number' 
-                  ? cuPredictions[cuPredictions.length - 1].cu.toFixed(2) 
-                  : ''
-              } %
-            </p>
-          </>
-        )}
+        <div className="current-values-list">
+          <p>Общий объем дутья: {typeof latestData.overallBlastVolume === 'number' ? latestData.overallBlastVolume.toFixed(2) : 'N/A'} м³/ч</p>
+          <p>Температура пода, штейновый сифон: {typeof latestData.tempFeedMatteSiphon === 'number' ? latestData.tempFeedMatteSiphon.toFixed(2) : 'N/A'} °C</p>
+          <p>Температура пода, зона плавления, точка 1: {typeof latestData.tempFeedMeltingZonePoint1 === 'number' ? latestData.tempFeedMeltingZonePoint1.toFixed(2) : 'N/A'} °C</p>
+          <p>Расход природного газа: {typeof latestData.naturalGasFlow === 'number' ? latestData.naturalGasFlow.toFixed(2) : 'N/A'} м³/ч</p>
+          <p>Скорость питателя: {typeof latestData.feeder2Speed === 'number' ? latestData.feeder2Speed.toFixed(2) : 'N/A'} км/ч</p>
+          <p className="font-bold">
+            Cu: {cuPredictions?.length > 0 && typeof cuPredictions[cuPredictions.length - 1]?.cu === 'number' 
+              ? cuPredictions[cuPredictions.length - 1].cu.toFixed(2) 
+              : 'N/A'} %
+          </p>
+        </div>
       </div>
 
       {recommendations.length > 0 && (
         <div className="recommendations">
           <h2>Рекомендации оператору</h2>
           {recommendations.map((rec, index) => (
-            <p key={index} className="recommendation-text">
-              {rec.parameter}: {rec.action} с {rec.current_value.toFixed(2)} до {rec.recommended_value.toFixed(2)} (изменение: {rec.change.toFixed(2)})
-            </p>
+            <div key={index} className="recommendation-item">
+              <p className="recommendation-text">
+                {rec.parameter}: {rec.action} с {rec.current_value.toFixed(2)} до {rec.recommended_value.toFixed(2)} (изменение: {rec.change.toFixed(2)})
+              </p>
+              <button
+                className="btn btn-accept"
+                onClick={() => acceptRecommendation(index, rec)}
+              >
+                Принять
+              </button>
+              <button
+                className="btn btn-reject"
+                onClick={() => rejectRecommendation(index, rec)}
+              >
+                Отклонить
+              </button>
+            </div>
           ))}
         </div>
       )}

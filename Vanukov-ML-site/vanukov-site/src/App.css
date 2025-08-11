@@ -1,12 +1,11 @@
 .container {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 20px;
+
   font-family: Arial, sans-serif;
   background-color: #ffffff; /* Light background */
   display: flex;
   flex-direction: column;
-  min-height: 100vh; /* Ensure container takes full viewport height */
+  width: 100%;
+  height: 100%;
 }
 
 h1 {
@@ -74,6 +73,12 @@ h2 {
   font-size: 14px;
   color: #333;
   margin: 8px 0;
+}
+
+.current-values-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .recommendation-text {

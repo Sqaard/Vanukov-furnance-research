@@ -52,7 +52,7 @@ if TEST_MODE:
 adjustment_count = 0
 
 # Minimum data points required for prediction
-MIN_DATA_POINTS = 50
+MIN_DATA_POINTS = 20
 
 TARGET = 62.5
 
@@ -99,7 +99,7 @@ def predict():
             app.config['last_prediction'] = simulate_prediction(adjustment_count)
 
         # slide buffer by 1
-        app.config['data_buffer'] = app.config['data_buffer'][1:]
+        app.config['data_buffer'] = app.config['data_buffer'][10:]
 
         return jsonify({"prediction": float(app.config['last_prediction'])})
 
